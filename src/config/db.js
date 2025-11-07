@@ -1,12 +1,24 @@
 const { Pool } = require('pg');
 
-const pool = new Pool({
-    user: process.env.PGUSER ?? 'postgres',
-    host: process.env.PGHOST ?? 'localhost',
-    database: process.env.PGDATABASE ?? 'chat_db',
-    password: process.env.PGPASSWORD ?? 'admin',
-    port: parseInt(process.env.PGPORT) || 5432,
-});
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+    throw new Error('❌ La variable de entorno DATABASE_URL no está definida. Revisa tu .env en local o Railway.');
+}
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+const sslConfig = isProduction 
+    ? { rejectUnauthorized: false } 
+    : false; 
+
+
+const poolConfig = {
+    connectionString: connectionString,
+    ssl: sslConfig, 
+};
+
+const pool = new Pool(poolConfig);
 
 const initializeDB = async () => {
     try {
@@ -19,14 +31,19 @@ const initializeDB = async () => {
                 timestamp TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
             );
         `;
-        await pool.query(createTableQuery);
+        await pool.query(createTableQuery); 
         console.log('✅ PostgreSQL: Tabla de mensajes verificada/creada.');
     } catch (err) {
-        console.error('❌ Error al inicializar la base de datos:', err);
+        console.error(`❌ Error al inicializar la base de datos: ${err.message}`);
+        throw err; 
     }
 };
 
+const query = (text, params) => {
+    return pool.query(text, params);
+};
+
 module.exports = {
-    query: (text, params) => pool.query(text, params),
+    query,
     initializeDB
 };
